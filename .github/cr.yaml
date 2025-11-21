@@ -12,9 +12,6 @@ release-name-template: "{{ .Name }}-{{ .Version }}"
 # Generate release notes from Git commits
 generate-release-notes: true
 
-# Store packaged charts in this directory (on gh-pages branch)
-packages-with-index: true
-
 # Sign packages (optional - requires GPG key)
 sign: false
 
