@@ -19,7 +19,7 @@ packages-with-index: true
 sign: false
 
 # Mark releases as latest
-mark-as-latest: true
+make-release-latest: true
 
 # Skip existing releases
 skip-existing: true
