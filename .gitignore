@@ -25,3 +25,5 @@ Thumbs.db
 # Testing
 .cr-release-packages/
 .cr-index/
+
+CLAUDE.md
