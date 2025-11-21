@@ -1,0 +1,109 @@
+# Low-resource configuration for edge deployments and resource-constrained environments
+# Minimizes CPU and memory footprint while maintaining basic monitoring
+
+global:
+  clusterName: "edge-cluster"
+  otelGatewayEndpoint: "otel-gateway.default.svc:4317"
+
+policies:
+  mandateSource: "configmap"
+  mandate:
+    enabled: true
+    policies:
+      - name: network-connections
+        enabled: true
+      - name: dns-monitoring
+        enabled: false
+      - name: http-monitoring
+        enabled: false
+      - name: tls-monitoring
+        enabled: false
+
+tetragon:
+  exportAllowList: |-
+    {
+      "event_set": ["PROCESS_CONNECT", "PROCESS_CLOSE"]
+    }
+  exportDenyList: |-
+    {"destination_ip_cidr": ["127.0.0.0/8", "169.254.0.0/16", "10.0.0.0/8", "172.16.0.0/12"]}
+    {"namespace": ["kube-system", "kube-public"]}
+  exportRateLimit: 1000
+  eventQueueSize: 1000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+fluentbit:
+  env:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: CLUSTER_NAME
+      value: "edge-cluster"
+    - name: OTEL_SERVICE_NAME
+      value: "RELEASE_NAME-otelAgent"
+  resources:
+    limits:
+      cpu: 100m
+      memory: 50Mi
+    requests:
+      cpu: 50m
+      memory: 25Mi
+  config:
+    service: |
+      [SERVICE]
+          Daemon              Off
+          Flush               10
+          Log_Level           warn
+          Parsers_File        parsers.conf
+          HTTP_Server         On
+          HTTP_Listen         0.0.0.0
+          HTTP_Port           2020
+          Health_Check        On
+          storage.path        /var/fluent-bit/state
+          storage.backlog.mem_limit 5M
+
+otelAgent:
+  extraEnvs:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: K8S_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: CLUSTER_NAME
+      value: "edge-cluster"
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+  resources:
+    limits:
+      cpu: 200m
+      memory: 200Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+  config:
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 150
+        spike_limit_mib: 50
+      batch:
+        send_batch_max_size: 500
+        timeout: 10s
+        send_batch_size: 100
+
+monitoring:
+  enabled: false
+
+networkPolicies:
+  enabled: false

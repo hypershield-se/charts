@@ -1,0 +1,607 @@
+# Default values for tetragon-observability-stack
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global settings applied across all subcharts
+global:
+  # Cluster identifier (used for labeling and routing)
+  clusterName: "my-cluster"
+
+  # Default namespace for all components
+  # Can be overridden per component if needed
+  namespace: tetragon
+
+  # OpenTelemetry Collector Gateway endpoint
+  # This is REQUIRED - you must provide your own OTel Gateway endpoint
+  # Example: "otel-collector-gateway.monitoring.svc.cluster.local:4317"
+  otelGatewayEndpoint: ""
+
+  # TLS configuration for OTel Gateway connection
+  otelGatewayTLS:
+    enabled: false
+    insecure: true
+    # ca_file: ""
+    # cert_file: ""
+    # key_file: ""
+
+# Policy Management Configuration
+policies:
+  # How to provide mandate file
+  # Options: "configmap" (embedded in chart) or "url" (external HTTPS endpoint)
+  mandateSource: "configmap"
+
+  # Mandate configuration (used when mandateSource: "configmap")
+  mandate:
+    # Enable mandate ConfigMap creation
+    enabled: true
+
+    # Mandate metadata
+    info:
+      version: "1.0.0"
+      description: "Network flow collection policies for Tetragon"
+      owner: "platform-team"
+
+    # Global mode for all policies
+    # Options: "monitor" (observability only) or "enforce" (can block/kill)
+    mode: "monitor"
+
+    # List of policies to load
+    # Each policy can override the global mode
+    policies:
+      - name: network-connections
+        enabled: true
+        # mode: "monitor"  # Optional: override global mode
+      - name: dns-monitoring
+        enabled: false
+      - name: http-monitoring
+        enabled: false
+      - name: tls-monitoring
+        enabled: false
+
+  # External mandate URL (used when mandateSource: "url")
+  # Example: "https://policies.example.com/tetragon/mandate.yaml"
+  mandateUrl: ""
+
+  # How often to check for mandate updates (only applies to URL-based mandates)
+  mandateRefreshPeriod: "1m0s"
+
+  # TracingPolicy definitions
+  # These are embedded in the chart as ConfigMaps when mandateSource: "configmap"
+  tracingPolicies:
+    # Network connection tracking (TCP connect/accept/listen/close)
+    networkConnections:
+      enabled: true
+      # Full policy definition moved to separate ConfigMap template
+
+    # DNS query and response monitoring
+    dnsMonitoring:
+      enabled: false
+
+    # HTTP/HTTPS request/response monitoring
+    httpMonitoring:
+      enabled: false
+
+    # TLS handshake and SNI monitoring
+    tlsMonitoring:
+      enabled: false
+
+# Tetragon DaemonSet Configuration
+# These values are passed to the Tetragon subchart
+tetragon:
+  # Enable Tetragon deployment
+  enabled: true
+
+  # Event export configuration
+  export:
+    # Export mode: "stdout" or "file"
+    mode: "file"
+
+    # File export settings
+    filenames:
+      - tetragon.log
+
+    # Export directory (mounted by Fluent Bit)
+    directory: "/var/run/cilium/tetragon"
+
+  # Event filtering - allow list
+  # Only these event types will be exported
+  exportAllowList: |-
+    {
+      "event_set": [
+        "PROCESS_EXEC",
+        "PROCESS_EXIT",
+        "PROCESS_CONNECT",
+        "PROCESS_ACCEPT",
+        "PROCESS_LISTEN",
+        "PROCESS_CLOSE"
+      ]
+    }
+
+  # Event filtering - deny list
+  # Filter out noise from localhost, link-local, and system namespaces
+  exportDenyList: |-
+    {
+      "destination_ip_cidr": [
+        "127.0.0.0/8",
+        "169.254.0.0/16"
+      ]
+    }
+    {
+      "event_set": ["PROCESS_CONNECT", "PROCESS_ACCEPT", "PROCESS_CLOSE"],
+      "namespace": ["kube-system"]
+    }
+
+  # Performance tuning
+  # Maximum events per minute (-1 = unlimited)
+  exportRateLimit: 10000
+
+  # Event queue buffer size
+  eventQueueSize: 10000
+
+  # Enable process credentials in events
+  enableProcessCred: true
+
+  # Enable process namespace information
+  enableProcessNs: true
+
+  # Enable process ancestry chain
+  enableProcessAncestors: true
+
+  # Enable Kubernetes API for pod/namespace enrichment
+  enableK8sAPI: true
+
+  # Resource limits for Tetragon pods
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  # Priority class for critical system pods
+  priorityClassName: "system-node-critical"
+
+  # Policy loading configuration
+  # When using ConfigMap source, Tetragon fetches from the local policy-server
+  # The policy-server is automatically deployed and serves ConfigMaps via HTTP
+  # NOTE: This will be set automatically during chart rendering to:
+  #   http://RELEASE_NAME-tetragon-observability-stack-policy-server.NAMESPACE/tetragon/mandate.yaml
+  # For manual configuration, users should override at install time with:
+  #   --set tetragon.policyServer=http://policy-server.namespace.svc/tetragon/mandate.yaml
+  policyServer: ""  # Dynamically set by templates when mandateSource=configmap
+
+# Fluent Bit DaemonSet Configuration
+# These values are passed to the Fluent Bit subchart
+fluentbit:
+  # Enable Fluent Bit deployment
+  enabled: true
+
+  # Fluent Bit image configuration
+  image:
+    repository: cr.fluentbit.io/fluent/fluent-bit
+    tag: "3.1.9"
+    pullPolicy: IfNotPresent
+
+  # Resource limits for Fluent Bit pods
+  resources:
+    limits:
+      cpu: 200m
+      memory: 100Mi
+    requests:
+      cpu: 100m
+      memory: 50Mi
+
+  # Tolerations for node scheduling
+  tolerations:
+    - key: node-role.kubernetes.io/master
+      operator: Exists
+      effect: NoSchedule
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    port: 2020
+    labels: {}
+    annotations: {}
+
+  # Fluent Bit configuration
+  # This is the complete configuration for Tetragon log collection
+  config:
+    service: |
+      [SERVICE]
+          Daemon              Off
+          Flush               1
+          Log_Level           info
+          Parsers_File        parsers.conf
+          HTTP_Server         On
+          HTTP_Listen         0.0.0.0
+          HTTP_Port           2020
+          Health_Check        On
+          storage.path        /var/fluent-bit/state
+          storage.sync        normal
+          storage.checksum    off
+          storage.backlog.mem_limit 10M
+
+    inputs: |
+      [INPUT]
+          Name                tail
+          Path                /var/run/cilium/tetragon/tetragon.log
+          Parser              json
+          Tag                 tetragon.security
+          Refresh_Interval    5
+          Mem_Buf_Limit       10MB
+          Skip_Long_Lines     On
+          Skip_Empty_Lines    On
+          DB                  /var/fluent-bit/state/tetragon.db
+          DB.sync             normal
+
+    filters: |
+      [FILTER]
+          Name                kubernetes
+          Match               tetragon.*
+          Kube_URL            https://kubernetes.default.svc:443
+          Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+          Kube_Tag_Prefix     tetragon.
+          Merge_Log           On
+          Keep_Log            On
+          K8S-Logging.Parser  On
+          K8S-Logging.Exclude On
+          Labels              On
+          Annotations         Off
+
+      [FILTER]
+          Name                modify
+          Match               tetragon.*
+          Add                 source tetragon
+          Add                 cluster ${CLUSTER_NAME}
+          Add                 node_name ${NODE_NAME}
+
+    outputs: |
+      [OUTPUT]
+          Name                opentelemetry
+          Match               tetragon.*
+          # Uses OTEL_SERVICE_NAME environment variable for dynamic service name
+          # Resolves to: {{ .Release.Name }}-otelAgent
+          Host                ${OTEL_SERVICE_NAME}
+          Port                4317
+          Metrics_uri         /v1/metrics
+          Logs_uri            /v1/logs
+          Traces_uri          /v1/traces
+          Log_response_payload True
+          Tls                 Off
+          Tls.verify          Off
+          # Connection settings
+          net.keepalive       on
+          net.keepalive_idle_timeout 30
+
+    customParsers: |
+      [PARSER]
+          Name                json
+          Format              json
+          Time_Key            time
+          Time_Format         %Y-%m-%dT%H:%M:%S.%LZ
+          Time_Keep           On
+
+  # Volume mounts
+  volumeMounts:
+    - name: tetragon-logs
+      mountPath: /var/run/cilium/tetragon
+      readOnly: true
+    - name: state
+      mountPath: /var/fluent-bit/state
+
+  # Volumes
+  daemonSetVolumes:
+    - name: tetragon-logs
+      hostPath:
+        path: /var/run/cilium/tetragon
+        type: DirectoryOrCreate
+    - name: state
+      hostPath:
+        path: /var/fluent-bit/state
+        type: DirectoryOrCreate
+
+  # Environment variables
+  env:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: CLUSTER_NAME
+      value: "{{ .Values.global.clusterName }}"
+    - name: OTEL_SERVICE_NAME
+      value: "{{ .Release.Name }}-otelAgent"
+
+# OpenTelemetry Collector Agent DaemonSet Configuration
+# These values are passed to the OTel Collector subchart
+otelAgent:
+  # Enable OTel Collector Agent deployment
+  enabled: true
+
+  # Deployment mode (must be daemonset for node-level collection)
+  mode: daemonset
+
+  # Image configuration
+  image:
+    repository: otel/opentelemetry-collector-contrib
+    tag: "0.97.0"
+
+  # Service configuration
+  service:
+    enabled: true
+    type: ClusterIP
+
+  # Ports configuration
+  ports:
+    otlp:
+      enabled: true
+      containerPort: 4317
+      servicePort: 4317
+      hostPort: 4317
+      protocol: TCP
+    otlp-http:
+      enabled: false
+    metrics:
+      enabled: true
+      containerPort: 8888
+      servicePort: 8888
+      protocol: TCP
+
+  # Resource limits for OTel Collector Agent pods
+  resources:
+    limits:
+      cpu: 500m
+      memory: 500Mi
+    requests:
+      cpu: 200m
+      memory: 200Mi
+
+  # Extra environment variables for resource attribution
+  # Use extraEnvs for the OpenTelemetry Collector subchart
+  extraEnvs:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: K8S_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: CLUSTER_NAME
+      value: "{{ .Values.global.clusterName }}"
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+
+  # Persistent storage for queue and file_storage extension
+  extraVolumes:
+    - name: file-storage
+      hostPath:
+        path: /var/lib/otelcol-agent
+        type: DirectoryOrCreate
+
+  extraVolumeMounts:
+    - name: file-storage
+      mountPath: /var/lib/otelcol
+
+  # OpenTelemetry Collector configuration
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+            max_recv_msg_size_mib: 16
+            max_concurrent_streams: 100
+            read_buffer_size: 524288
+            write_buffer_size: 524288
+            keepalive:
+              server_parameters:
+                max_connection_idle: 60s
+                max_connection_age: 300s
+                max_connection_age_grace: 30s
+                time: 30s
+                timeout: 10s
+
+    processors:
+      # Memory limiter to prevent OOM (must be first processor)
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+        limit_mib: 400
+        spike_limit_mib: 100
+
+      # Add resource attributes (cluster, node, namespace)
+      resource:
+        attributes:
+          - key: cluster.name
+            value: "${CLUSTER_NAME}"
+            action: upsert
+          - key: node.name
+            value: "${NODE_NAME}"
+            action: upsert
+          - key: k8s.namespace.name
+            value: "${K8S_NAMESPACE}"
+            action: upsert
+          - key: service.name
+            value: "tetragon"
+            action: upsert
+          - key: telemetry.sdk.name
+            value: "tetragon-observability-stack"
+            action: upsert
+
+      # Transform processor for log enrichment
+      transform:
+        log_statements:
+          - context: log
+            statements:
+              # Add log source
+              - set(attributes["log.source"], "tetragon")
+              # Ensure severity is set
+              - set(severity_text, "INFO") where severity_text == nil
+              # Add collection timestamp
+              - set(attributes["collection.timestamp"], Now())
+
+      # Batch processor for efficiency
+      batch:
+        send_batch_max_size: 2000
+        timeout: 1s
+        send_batch_size: 1000
+        # Metadata keys to group by
+        metadata_keys:
+          - k8s.namespace.name
+          - k8s.pod.name
+          - k8s.node.name
+
+      # Attributes processor for additional metadata
+      attributes:
+        actions:
+          - key: deployment.environment
+            value: "production"
+            action: insert
+          - key: collector.name
+            value: "otel-agent"
+            action: insert
+          - key: collector.version
+            value: "0.97.0"
+            action: insert
+
+    exporters:
+      # Export to OTel Gateway with optimized settings
+      otlp/gateway:
+        endpoint: "{{ .Values.global.otelGatewayEndpoint }}"
+        tls:
+          insecure: "{{ .Values.global.otelGatewayTLS.insecure }}"
+        # Use zstd compression for 60-80% size reduction
+        compression: zstd
+        # Connection settings
+        keepalive:
+          time: 30s
+          timeout: 10s
+          permit_without_stream: true
+        # Write buffer size
+        write_buffer_size: 524288
+        # Persistent queue for reliability
+        sending_queue:
+          enabled: true
+          num_consumers: 10
+          queue_size: 5000
+          storage: file_storage
+        # Retry configuration for transient failures
+        retry_on_failure:
+          enabled: true
+          initial_interval: 5s
+          max_interval: 30s
+          max_elapsed_time: 300s
+          multiplier: 1.5
+        # Timeout settings
+        timeout: 30s
+
+      # Debug exporter for troubleshooting (disabled by default)
+      # Uncomment to enable detailed logging
+      # debug:
+      #   verbosity: detailed
+      #   sampling_initial: 5
+      #   sampling_thereafter: 200
+
+    # Extensions for additional functionality
+    extensions:
+      # File storage for persistent queue
+      file_storage:
+        directory: /var/lib/otelcol/file_storage
+        timeout: 10s
+        compaction:
+          directory: /var/lib/otelcol/file_storage
+          on_start: true
+          on_rebound: true
+          rebound_needed_threshold_mib: 100
+          rebound_trigger_threshold_mib: 10
+
+      # Health check extension
+      health_check:
+        endpoint: 0.0.0.0:13133
+        path: "/health"
+
+      # Performance profiler (disabled by default)
+      # pprof:
+      #   endpoint: 0.0.0.0:1777
+
+    service:
+      # Extensions to enable
+      extensions: [file_storage, health_check]
+
+      # Telemetry settings for the collector itself
+      telemetry:
+        logs:
+          level: info
+        metrics:
+          address: 0.0.0.0:8888
+          level: detailed
+
+      # Processing pipelines
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, transform, batch, attributes]
+          exporters: [otlp/gateway]
+
+# Monitoring Configuration (Prometheus Operator)
+monitoring:
+  # Enable ServiceMonitor creation
+  enabled: false
+
+  # ServiceMonitor for Tetragon
+  serviceMonitors:
+    tetragon:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+      labels: {}
+      relabelings: []
+      metricRelabelings: []
+
+    # ServiceMonitor for Fluent Bit
+    fluentbit:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+      labels: {}
+      relabelings: []
+      metricRelabelings: []
+
+    # ServiceMonitor for OTel Collector Agent
+    otelAgent:
+      enabled: true
+      interval: 30s
+      scrapeTimeout: 10s
+      labels: {}
+      relabelings: []
+      metricRelabelings: []
+
+# Network Policies
+networkPolicies:
+  # Enable NetworkPolicy creation
+  enabled: false
+
+  # NetworkPolicy for Tetragon
+  tetragon:
+    enabled: true
+    # Allow egress to Kubernetes API for metadata enrichment
+    allowKubeAPIAccess: true
+
+  # NetworkPolicy for Fluent Bit
+  fluentbit:
+    enabled: true
+    # Allow egress to Kubernetes API for K8s metadata enrichment
+    allowKubeAPIAccess: true
+
+  # NetworkPolicy for OTel Collector Agent
+  otelAgent:
+    enabled: true

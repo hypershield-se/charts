@@ -1,0 +1,33 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.serviceMonitors.fluentbit.enabled .Values.fluentbit.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "tetragon-observability-stack.fullname" . }}-fluentbit
+  namespace: {{ include "tetragon-observability-stack.namespace" . }}
+  labels:
+    {{- include "tetragon-observability-stack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: fluent-bit
+    {{- with .Values.monitoring.serviceMonitors.fluentbit.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fluentbit
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  endpoints:
+  - port: http
+    interval: {{ .Values.monitoring.serviceMonitors.fluentbit.interval }}
+    scrapeTimeout: {{ .Values.monitoring.serviceMonitors.fluentbit.scrapeTimeout }}
+    path: /api/v1/metrics/prometheus
+    scheme: http
+    {{- with .Values.monitoring.serviceMonitors.fluentbit.relabelings }}
+    relabelings:
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+    {{- with .Values.monitoring.serviceMonitors.fluentbit.metricRelabelings }}
+    metricRelabelings:
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,90 @@
+# Minimal configuration for development/testing environments
+# This configuration uses minimal resources and only basic network monitoring
+
+global:
+  clusterName: "dev-cluster"
+  # REQUIRED: Set your OTel Gateway endpoint
+  otelGatewayEndpoint: "otel-gateway.default.svc:4317"
+
+policies:
+  mandateSource: "configmap"
+  mandate:
+    enabled: true
+    info:
+      version: "1.0.0"
+      description: "Minimal network monitoring for dev"
+    policies:
+      - name: network-connections
+        enabled: true
+      - name: dns-monitoring
+        enabled: false
+      - name: http-monitoring
+        enabled: false
+      - name: tls-monitoring
+        enabled: false
+
+# Tetragon configuration
+# When using ConfigMap mandate source, Tetragon fetches policies from the local policy-server
+# The policy server URL is: http://RELEASE_NAME-tetragon-observability-stack-policy-server.NAMESPACE/tetragon/mandate.yaml
+# Example: helm install my-stack ... (creates policy-server at http://my-stack-tetragon-observability-stack-policy-server.tetragon/...)
+tetragon:
+  exportDenyList: |-
+    {"namespace": ["kube-system", "kube-public", "kube-node-lease"]}
+  exportRateLimit: 1000
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+fluentbit:
+  # Override env vars with actual values (template expressions don't work in subcharts)
+  env:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: CLUSTER_NAME
+      value: "dev-cluster"  # Must match global.clusterName
+    - name: OTEL_SERVICE_NAME
+      value: "test-release-otelAgent"  # Pattern: RELEASE_NAME-otelAgent
+  resources:
+    limits:
+      cpu: 100m
+      memory: 50Mi
+    requests:
+      cpu: 50m
+      memory: 25Mi
+
+otelAgent:
+  # Override CLUSTER_NAME env var with actual value (can't use template in values.yaml)
+  extraEnvs:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: K8S_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: CLUSTER_NAME
+      value: "dev-cluster"  # Must match global.clusterName
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+  resources:
+    limits:
+      cpu: 200m
+      memory: 200Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+monitoring:
+  enabled: false
+
+networkPolicies:
+  enabled: false

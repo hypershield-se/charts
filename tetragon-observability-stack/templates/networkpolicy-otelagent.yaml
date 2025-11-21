@@ -1,0 +1,57 @@
+{{- if and .Values.networkPolicies.enabled .Values.networkPolicies.otelAgent.enabled .Values.otelAgent.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "tetragon-observability-stack.fullname" . }}-otelagent
+  namespace: {{ include "tetragon-observability-stack.namespace" . }}
+  labels:
+    {{- include "tetragon-observability-stack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-agent
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: otelAgent
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      component: agent-collector
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow Fluent Bit to send logs
+  - from:
+    - podSelector:
+        matchLabels:
+          app.kubernetes.io/name: fluentbit
+          app.kubernetes.io/instance: {{ .Release.Name }}
+    ports:
+    - protocol: TCP
+      port: 4317
+  # Allow Prometheus to scrape metrics
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 8888
+  # Allow health check access
+  - from:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 13133
+  egress:
+  # Allow egress to OTel Gateway
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 4317
+  # Allow DNS resolution
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+{{- end }}

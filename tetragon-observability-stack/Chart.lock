@@ -1,0 +1,12 @@
+dependencies:
+- name: tetragon
+  repository: https://helm.isovalent.com
+  version: 1.16.0
+- name: fluent-bit
+  repository: https://fluent.github.io/helm-charts
+  version: 0.47.10
+- name: opentelemetry-collector
+  repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+  version: 0.97.1
+digest: sha256:283e6fd2fb074a703397fca9a45db917f2c685b3860391d7ee38616fd7820576
+generated: "2025-11-20T07:17:10.260903-06:00"

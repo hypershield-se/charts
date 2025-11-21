@@ -1,0 +1,100 @@
+# High-volume configuration for large clusters with high event rates
+# Optimized for clusters with >10,000 events/min per node
+
+global:
+  clusterName: "prod-high-volume"
+  otelGatewayEndpoint: "otel-collector-gateway.monitoring.svc.cluster.local:4317"
+
+policies:
+  mandateSource: "url"
+  mandateUrl: "https://policies.example.com/tetragon/mandate.yaml"
+  mandateRefreshPeriod: "5m0s"
+
+tetragon:
+  exportAllowList: |-
+    {
+      "event_set": ["PROCESS_CONNECT", "PROCESS_ACCEPT", "PROCESS_CLOSE"]
+    }
+  exportDenyList: |-
+    {"destination_ip_cidr": ["127.0.0.0/8", "169.254.0.0/16", "10.0.0.0/8"]}
+    {"namespace": ["kube-system", "monitoring", "logging"]}
+  exportRateLimit: 100000
+  eventQueueSize: 50000
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 4Gi
+    requests:
+      cpu: 1000m
+      memory: 2Gi
+
+fluentbit:
+  env:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: CLUSTER_NAME
+      value: "prod-high-volume"
+    - name: OTEL_SERVICE_NAME
+      value: "RELEASE_NAME-otelAgent"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 500Mi
+    requests:
+      cpu: 500m
+      memory: 250Mi
+  config:
+    service: |
+      [SERVICE]
+          Daemon              Off
+          Flush               5
+          Log_Level           info
+          Parsers_File        parsers.conf
+          HTTP_Server         On
+          HTTP_Listen         0.0.0.0
+          HTTP_Port           2020
+          Health_Check        On
+          storage.path        /var/fluent-bit/state
+          storage.backlog.mem_limit 50M
+
+otelAgent:
+  extraEnvs:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: K8S_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: CLUSTER_NAME
+      value: "prod-high-volume"
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+  config:
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: 1500
+        spike_limit_mib: 500
+      batch:
+        send_batch_max_size: 5000
+        timeout: 5s
+        send_batch_size: 2500
+
+monitoring:
+  enabled: true
+
+networkPolicies:
+  enabled: true

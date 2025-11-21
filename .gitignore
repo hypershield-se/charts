@@ -1,0 +1,27 @@
+# Helm
+*.tgz
+.helm/
+
+# Chart dependencies
+*/charts/*.tgz
+*/requirements.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.orig
+
+# Testing
+.cr-release-packages/
+.cr-index/

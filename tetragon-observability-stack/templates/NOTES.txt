@@ -1,0 +1,94 @@
+{{- include "tetragon-observability-stack.validateValues" . -}}
+
+Tetragon Observability Stack has been installed!
+
+Release: {{ .Release.Name }}
+Namespace: {{ include "tetragon-observability-stack.namespace" . }}
+Cluster: {{ .Values.global.clusterName }}
+
+Components Deployed:
+{{- if .Values.tetragon.enabled }}
+  ✓ Tetragon DaemonSet (eBPF observability)
+{{- end }}
+{{- if .Values.fluentbit.enabled }}
+  ✓ Fluent Bit DaemonSet (log collection)
+{{- end }}
+{{- if .Values.otelAgent.enabled }}
+  ✓ OpenTelemetry Collector Agent DaemonSet (node processing)
+{{- end }}
+
+Policy Management:
+{{- if eq .Values.policies.mandateSource "configmap" }}
+  Mode: ConfigMap-based mandate (served via local policy-server)
+  Version: {{ .Values.policies.mandate.info.version }}
+  Policy Server: http://{{ include "tetragon-observability-stack.fullname" . }}-policy-server.{{ include "tetragon-observability-stack.namespace" . }}/tetragon/mandate.yaml
+  Policies Enabled:
+  {{- range .Values.policies.mandate.policies }}
+    {{- if .enabled }}
+    - {{ .name }}
+    {{- end }}
+  {{- end }}
+
+  Configure Tetragon to use the policy server:
+    kubectl set env daemonset/{{ .Release.Name }}-tetragon -n {{ include "tetragon-observability-stack.namespace" . }} \
+      TETRAGON_MANDATE_URL=http://{{ include "tetragon-observability-stack.fullname" . }}-policy-server/tetragon/mandate.yaml
+{{- else if eq .Values.policies.mandateSource "url" }}
+  Mode: URL-based mandate
+  URL: {{ .Values.policies.mandateUrl }}
+  Refresh Period: {{ .Values.policies.mandateRefreshPeriod }}
+{{- end }}
+
+OpenTelemetry Gateway: {{ .Values.global.otelGatewayEndpoint }}
+{{- if .Values.global.otelGatewayTLS.enabled }}
+  TLS: Enabled
+{{- else }}
+  TLS: Disabled
+{{- end }}
+
+Next Steps:
+
+1. Verify all pods are running:
+   kubectl get pods -n {{ include "tetragon-observability-stack.namespace" . }}
+
+2. Check Tetragon mandate status:
+   kubectl exec -n {{ include "tetragon-observability-stack.namespace" . }} ds/{{ .Release.Name }}-tetragon -c tetragon -- \
+     tetra mandate status
+
+3. View Tetragon events:
+   kubectl logs -n {{ include "tetragon-observability-stack.namespace" . }} \
+     -l app.kubernetes.io/name=tetragon -c export-stdout --tail=20
+
+4. Check Fluent Bit is collecting:
+   kubectl logs -n {{ include "tetragon-observability-stack.namespace" . }} ds/{{ .Release.Name }}-fluent-bit --tail=20
+
+5. Verify OTel Agent metrics:
+   kubectl port-forward -n {{ include "tetragon-observability-stack.namespace" . }} \
+     ds/{{ .Release.Name }}-opentelemetry-collector 8888:8888
+   curl http://localhost:8888/metrics | grep otelcol_receiver
+
+{{- if .Values.monitoring.enabled }}
+
+Monitoring:
+  ServiceMonitors created for Prometheus Operator
+  Check metrics are being scraped:
+    kubectl get servicemonitors -n {{ include "tetragon-observability-stack.namespace" . }}
+{{- end }}
+
+{{- if .Values.networkPolicies.enabled }}
+
+Network Policies:
+  NetworkPolicies created for security
+  Verify connectivity between components if issues occur
+{{- end }}
+
+Documentation:
+  - Architecture: https://github.com/hypershield-se/merge/blob/main/docs/TETRAGON_OTEL_ARCHITECTURE.md
+  - Complete Guide: https://github.com/hypershield-se/merge/blob/main/docs/TETRAGON_COMPLETE_GUIDE.md
+  - Troubleshooting: https://github.com/hypershield-se/merge/blob/main/docs/TETRAGON_OTEL_MONITORING.md
+
+{{- if not .Values.global.otelGatewayEndpoint }}
+
+WARNING: global.otelGatewayEndpoint is not set!
+You must deploy an OpenTelemetry Collector Gateway separately and configure the endpoint.
+See: https://github.com/hypershield-se/merge/blob/main/docs/TETRAGON_OTEL_GATEWAY_CONFIG.md
+{{- end }}

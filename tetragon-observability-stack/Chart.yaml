@@ -1,0 +1,70 @@
+apiVersion: v2
+name: tetragon-observability-stack
+description: Complete observability stack for Tetragon with Fluent Bit and OpenTelemetry Collector
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+
+# Icon from Cilium/Tetragon project
+icon: https://raw.githubusercontent.com/cilium/tetragon/main/docs/static/img/tetragon_logo.png
+
+keywords:
+  - tetragon
+  - observability
+  - security
+  - ebpf
+  - opentelemetry
+  - fluent-bit
+  - cilium
+  - monitoring
+  - logging
+  - tracing
+  - kubernetes
+  - runtime-security
+
+home: https://github.com/hypershield-se/merge
+sources:
+  - https://github.com/hypershield-se/merge/tree/main/charts/tetragon-observability-stack
+  - https://github.com/cilium/tetragon
+  - https://github.com/fluent/fluent-bit
+  - https://github.com/open-telemetry/opentelemetry-collector
+
+maintainers:
+  - name: HyperShield Team
+    email: team@hypershield.se
+
+annotations:
+  # Artifact Hub annotations
+  artifacthub.io/category: monitoring-logging
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/signKey: |
+    # Future: Add GPG signing key
+  artifacthub.io/prerelease: "false"
+  artifacthub.io/recommendations: |
+    - url: https://artifacthub.io/packages/helm/prometheus-community/kube-prometheus-stack
+    - url: https://artifacthub.io/packages/helm/open-telemetry/opentelemetry-collector
+  artifacthub.io/links: |
+    - name: Chart Documentation
+      url: https://github.com/hypershield-se/merge/blob/main/charts/tetragon-observability-stack/README.md
+    - name: Tetragon Documentation
+      url: https://tetragon.io/docs/
+    - name: OpenTelemetry Documentation
+      url: https://opentelemetry.io/docs/
+
+dependencies:
+  - name: tetragon
+    version: "1.16.0"
+    repository: https://helm.isovalent.com
+    condition: tetragon.enabled
+
+  - name: fluent-bit
+    version: "0.47.10"
+    repository: https://fluent.github.io/helm-charts
+    condition: fluentbit.enabled
+    alias: fluentbit
+
+  - name: opentelemetry-collector
+    version: "0.97.1"
+    repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+    condition: otelAgent.enabled
+    alias: otelAgent

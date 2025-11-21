@@ -1,0 +1,34 @@
+{{- if and (eq .Values.policies.mandateSource "configmap") .Values.policies.mandate.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "tetragon-observability-stack.fullname" . }}-mandate
+  namespace: {{ include "tetragon-observability-stack.namespace" . }}
+  labels:
+    {{- include "tetragon-observability-stack.labels" . | nindent 4 }}
+    app.kubernetes.io/component: tetragon-policy
+data:
+  mandate.yaml: |
+    tetragonMandate:
+      info:
+        version: {{ .Values.policies.mandate.info.version | quote }}
+        description: {{ .Values.policies.mandate.info.description | quote }}
+        {{- if .Values.policies.mandate.info.owner }}
+        owner: {{ .Values.policies.mandate.info.owner | quote }}
+        {{- end }}
+        last-updated: {{ now | date "2006-01-02" | quote }}
+
+      conf:
+        mode: {{ .Values.policies.mandate.mode | quote }}
+
+      policies:
+      {{- range .Values.policies.mandate.policies }}
+      {{- if .enabled }}
+        - url: "policies/{{ .name }}.yaml"
+          {{- if .mode }}
+          conf:
+            mode: {{ .mode | quote }}
+          {{- end }}
+      {{- end }}
+      {{- end }}
+{{- end }}

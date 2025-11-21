@@ -1,0 +1,30 @@
+# Chart Testing configuration
+# https://github.com/helm/chart-testing
+
+# Helm repositories to add for dependency resolution
+helm-extra-set-args: --set=global.otelGatewayEndpoint=mock-gateway:4317
+
+# Additional Helm repositories for chart dependencies
+chart-repos:
+  - isovalent=https://helm.isovalent.com
+  - fluent=https://fluent.github.io/helm-charts
+  - opentelemetry=https://open-telemetry.github.io/opentelemetry-helm-charts
+
+# Validate maintainers field in Chart.yaml
+validate-maintainers: false
+
+# Validate chart version increment
+validate-chart-schema: true
+validate-yaml: true
+
+# Check version increment
+check-version-increment: true
+
+# Additional args for helm lint
+helm-lint-extra-args: ""
+
+# Excluded charts (for testing)
+excluded-charts: []
+
+# Target branch for version comparison
+target-branch: main

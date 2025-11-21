@@ -1,0 +1,127 @@
+# Production configuration with full monitoring and security features
+
+global:
+  clusterName: "prod-us-east-1"
+  # REQUIRED: Set your OTel Gateway endpoint
+  otelGatewayEndpoint: "otel-collector-gateway.monitoring.svc.cluster.local:4317"
+  otelGatewayTLS:
+    enabled: true
+    insecure: false
+
+policies:
+  # Use external URL for centralized policy management
+  mandateSource: "url"
+  mandateUrl: "https://policies.example.com/tetragon/mandate.yaml"
+  mandateRefreshPeriod: "5m0s"
+
+tetragon:
+  exportAllowList: |-
+    {
+      "event_set": [
+        "PROCESS_EXEC",
+        "PROCESS_EXIT",
+        "PROCESS_CONNECT",
+        "PROCESS_ACCEPT",
+        "PROCESS_LISTEN",
+        "PROCESS_CLOSE",
+        "PROCESS_DNS",
+        "PROCESS_HTTP",
+        "PROCESS_TLS"
+      ]
+    }
+  exportDenyList: |-
+    {"destination_ip_cidr": ["127.0.0.0/8", "169.254.0.0/16"]}
+    {"namespace": ["kube-system"]}
+  exportRateLimit: 50000
+  eventQueueSize: 20000
+  resources:
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+    requests:
+      cpu: 500m
+      memory: 512Mi
+
+fluentbit:
+  # Environment variables for production cluster
+  env:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: CLUSTER_NAME
+      value: "prod-us-east-1"
+    - name: OTEL_SERVICE_NAME
+      value: "RELEASE_NAME-otelAgent"  # Replace RELEASE_NAME at install time
+  resources:
+    limits:
+      cpu: 500m
+      memory: 200Mi
+    requests:
+      cpu: 200m
+      memory: 100Mi
+
+otelAgent:
+  # Environment variables for resource attribution
+  extraEnvs:
+    - name: NODE_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: spec.nodeName
+    - name: K8S_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    - name: CLUSTER_NAME
+      value: "prod-us-east-1"
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+    requests:
+      cpu: 500m
+      memory: 500Mi
+
+monitoring:
+  enabled: true
+  serviceMonitors:
+    tetragon:
+      enabled: true
+      labels:
+        prometheus: kube-prometheus
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+    fluentbit:
+      enabled: true
+      labels:
+        prometheus: kube-prometheus
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+    otelAgent:
+      enabled: true
+      labels:
+        prometheus: kube-prometheus
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - sourceLabels: [__meta_kubernetes_namespace]
+          targetLabel: namespace
+
+networkPolicies:
+  enabled: true
+  tetragon:
+    enabled: true
+  fluentbit:
+    enabled: true
+  otelAgent:
+    enabled: true
