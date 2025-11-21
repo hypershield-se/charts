@@ -2,7 +2,7 @@ apiVersion: v2
 name: tetragon-observability-stack
 description: Complete observability stack for Tetragon with Fluent Bit and OpenTelemetry Collector
 type: application
-version: 0.1.0
+version: 0.1.1
 appVersion: "1.0.0"
 
 # Icon from Cilium/Tetragon project
