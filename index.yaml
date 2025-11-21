@@ -19,6 +19,71 @@ entries:
         # Future: Add GPG signing key
     apiVersion: v2
     appVersion: 1.0.0
+    created: "2025-11-21T04:05:18.402306146Z"
+    dependencies:
+    - condition: tetragon.enabled
+      name: tetragon
+      repository: https://helm.isovalent.com
+      version: 1.16.0
+    - alias: fluentbit
+      condition: fluentbit.enabled
+      name: fluent-bit
+      repository: https://fluent.github.io/helm-charts
+      version: 0.47.10
+    - alias: otelAgent
+      condition: otelAgent.enabled
+      name: opentelemetry-collector
+      repository: https://open-telemetry.github.io/opentelemetry-helm-charts
+      version: 0.97.1
+    description: Complete observability stack for Tetragon with Fluent Bit and OpenTelemetry
+      Collector
+    digest: 798e80b1f8c15d68db5cd4e56191fd127d2abd1ac858d4bce562ccdef5eae7e0
+    home: https://github.com/hypershield-se/merge
+    icon: https://raw.githubusercontent.com/cilium/tetragon/main/docs/static/img/tetragon_logo.png
+    keywords:
+    - tetragon
+    - observability
+    - security
+    - ebpf
+    - opentelemetry
+    - fluent-bit
+    - cilium
+    - monitoring
+    - logging
+    - tracing
+    - kubernetes
+    - runtime-security
+    maintainers:
+    - email: team@hypershield.se
+      name: HyperShield Team
+    name: tetragon-observability-stack
+    sources:
+    - https://github.com/hypershield-se/merge/tree/main/charts/tetragon-observability-stack
+    - https://github.com/cilium/tetragon
+    - https://github.com/fluent/fluent-bit
+    - https://github.com/open-telemetry/opentelemetry-collector
+    type: application
+    urls:
+    - https://github.com/hypershield-se/charts/releases/download/tetragon-observability-stack-0.1.3/tetragon-observability-stack-0.1.3.tgz
+    version: 0.1.3
+  - annotations:
+      artifacthub.io/category: monitoring-logging
+      artifacthub.io/license: Apache-2.0
+      artifacthub.io/links: |
+        - name: Chart Documentation
+          url: https://github.com/hypershield-se/merge/blob/main/charts/tetragon-observability-stack/README.md
+        - name: Tetragon Documentation
+          url: https://tetragon.io/docs/
+        - name: OpenTelemetry Documentation
+          url: https://opentelemetry.io/docs/
+      artifacthub.io/prerelease: "false"
+      artifacthub.io/recommendations: |
+        - url: https://artifacthub.io/packages/helm/prometheus-community/kube-prometheus-stack
+        - url: https://artifacthub.io/packages/helm/open-telemetry/opentelemetry-collector
+      artifacthub.io/signKey: |
+        # Future: Add GPG signing key
+    apiVersion: v2
+    appVersion: 1.0.0
     created: "2025-11-21T03:45:22.424196833Z"
     dependencies:
     - condition: tetragon.enabled
@@ -131,4 +196,4 @@ entries:
     urls:
     - https://hypershield-se.github.io/charts/tetragon-observability-stack-0.1.1.tgz
     version: 0.1.1
-generated: "2025-11-21T03:45:22.424207443Z"
+generated: "2025-11-21T04:05:18.402324369Z"
