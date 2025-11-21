@@ -1,6 +1,6 @@
 # HyperShield Helm Charts
 
-Official Helm chart repository for HyperShield observability and security tools.
+Unofficial Helm chart repository for HyperShield related charts. 
 
 ## Usage
 
